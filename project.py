@@ -1,0 +1,112 @@
+
+#project
+
+!wget https://storage.googleapis.com/tensorflow-1-public/course2/week3/horse-or-human.zip
+!wget https://storage.googleapis.com/tensorflow-1-public/course2/week3/validation-horse-or-human.zip
+
+import os
+import zipfile
+
+zip_ref = zipfile.ZipFile('cat.zip','r')
+zip_ref.extractall('tmp/cat-or-dog')
+
+zip_ref.close()
+
+# Directory with training horse pictures
+train_cat_dir = os.path.join('tmp/cat-or-dog/cat')
+
+# Directory with training human pictures
+train_dog_dir = os.path.join('tmp/cat-or-dog/dog')
+
+# Directory with training horse pictures
+validation_cat_dir = os.path.join('tmp/validation-cat-or-dog/dog')
+
+# Directory with training human pictures
+validation_dog_dir = os.path.join('tmp/validation-cat-or-dog/dog')
+import tensorflow as tf
+
+# Build the model
+model = tf.keras.models.Sequential([
+    # Note the input shape is the desired size of the image 300x300 with 3 bytes color
+    # This is the first convolution
+    tf.keras.layers.Conv2D(16, (3,3), activation='relu', input_shape=(300, 300, 3)),
+    tf.keras.layers.MaxPooling2D(2, 2),
+    # The second convolution
+    tf.keras.layers.Conv2D(32, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    # The third convolution
+    tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    # The fourth convolution
+    tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    # The fifth convolution
+    tf.keras.layers.Conv2D(64, (3,3), activation='relu'),
+    tf.keras.layers.MaxPooling2D(2,2),
+    # Flatten the results to feed into a DNN
+    tf.keras.layers.Flatten(),
+    # 512 neuron hidden layer
+    tf.keras.layers.Dense(512, activation='relu'),
+    # Only 1 output neuron. It will contain a value from 0-1 where 0 for 1 class ('horses') and 1 for the other ('humans')
+    tf.keras.layers.Dense(1, activation='sigmoid')
+])
+from tensorflow.keras.optimizers import RMSprop
+
+# Set training parameters
+model.compile(loss='binary_crossentropy',
+              optimizer=RMSprop(learning_rate=1e-4),
+              metrics=['accuracy'])
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+
+# Apply data augmentation
+train_datagen = ImageDataGenerator(
+      rescale=1./255,
+      rotation_range=40,
+      width_shift_range=0.2,
+      height_shift_range=0.2,
+      shear_range=0.2,
+      zoom_range=0.2,
+      horizontal_flip=True,
+      fill_mode='nearest')
+
+validation_datagen = ImageDataGenerator(rescale=1/255)
+
+# Flow training images in batches of 128 using train_datagen generator
+train_generator = train_datagen.flow_from_directory(
+        'tmp/cat-or-dog/',  # This is the source directory for training images
+        target_size=(300, 300),  # All images will be resized to 150x150
+        batch_size=128,
+        # Since we use binary_crossentropy loss, we need binary labels
+        class_mode='binary')
+# Constant for epochs
+EPOCHS = 20
+
+# Train the model
+history = model.fit(
+      train_generator,
+      steps_per_epoch=8,  
+      epochs=EPOCHS,
+      verbose=1,
+     )
+import numpy as np
+from google.colab import files
+import keras.utils as image
+
+uploaded = files.upload()
+
+for fn in uploaded.keys():
+ 
+  # predicting images
+  path = '/content/' + fn
+  img = image.load_img(path, target_size=(300, 300))
+  x = image.img_to_array(img)
+  x /= 255
+  x = np.expand_dims(x, axis=0)
+
+  images = np.vstack([x])
+  classes = model.predict(images, batch_size=10)
+  print(classes[0])
+  if classes[0]>0.5:
+    print(fn + " is a dog")
+  else:
+    print(fn + " is a cat")
